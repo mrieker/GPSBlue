@@ -1,0 +1,123 @@
+<HTML>
+    <BODY>
+        <H2>GPSBlue, version <SCRIPT LANGUAGE=JAVASCRIPT>
+            document.write (hvjso.getVersionName () +
+                ' [' + hvjso.getGithubLink () + (hvjso.getGitDirtyFlag () ? ' (dirty)' : '') +
+                ']');
+        </SCRIPT></H2>
+        <H3>... a GPS-to-Bluetooth program from <A HREF="https://www.outerworldapps.com">Outer World Apps</A>.</H3>
+
+        <P>Putting a tablet in one's lap while flying can result in loss of GPS signal.
+            This can be fixed by placing a phone in a location within the aircraft that has a
+            better view of the sky, which receives the GPS signal, then relays the co-ordinates
+            to the tablet via bluetooth.</P>
+
+        <P>The bluetooth messages are in industry standard NMEA format of types GGA, GSV, RMC
+            (the minimal set needed to convey latitude, longitude, altitude, course, speed,
+            date, time, satellites).  They are known to work with EFB apps
+            <A HREF="https://play.google.com/store/apps/details?id=com.outerworldapps.wairtonow">WairToNow</A>
+            and <A HREF="https://play.google.com/store/apps/details?id=com.ds.avare">Avare</A>.
+            It probably works with others.</P>
+
+        <P>The GPSBlue app normally runs in the background.  This is indicated by the small
+            icon in the notifications bar at the top of the Android screen, no matter which
+            app if any happens to be open:</P>
+            <IMG SRC="notificationbar_w_circle.png">
+        <P>Whenever nothing is connected to it,
+            it shuts down GPS reception and waits for a bluetooth connection.  Whenever
+            something is connected, it starts
+            GPS reception and forwards the GPS information to whatever has connected (it can
+            handle multiple connections).</P>
+
+        <P>Running the GPSBlue app itself opens a user interface which gives the user control
+            over the background task via the <IMG SRC="menubutton.png" WIDTH=22 HEIGHT=22>
+            menu buttons:</P>
+        <UL>
+            <LI><B>Close UI</B> - closes the user interface but leaves the background task
+                running if is running
+            <LI><B>Start BT</B> - starts the background task if not running or restarts it
+                if it is already running
+            <LI><B>Stop BT</B> - stops the background task if it is running (no effect if
+                not)
+            <LI><B>Help</B> - display this page
+            <LI><B>Home</B> - go back to home screen
+        </UL>
+
+        <P>The app and background task require that the Android device have both Bluetooth
+            and GPS enabled in the device's Settings.  If not, the background task will
+            terminate and the UI will open and display an error message.</P>
+
+        <P>If the background task fails to start even with Bluetooth and GPS enabled, you may
+            need to try a different UUID.  The default is
+            <TT>00001101-1000-8000-0000-00805F9B34FB</TT> so try changing the
+            <TT>00001101</TT> to <TT>00001102</TT> etc (must be exactly 8 hexadecimal digits).
+            You will have to tell the EFB app to use the different UUID.</P>
+
+        <P>The device running the EFB app only needs Bluetooth enabled.  And it needs to be
+            paired using its Bluetooth control found in the Android device's Settings.</P>
+
+        <P>It is recommended that WiFi be turned off on all devices when using them in flight
+            to conserve battery.</P>
+
+        <H3>Common causes of connection failure</H3>
+
+        <P>If the EFB app is unable to connect to GPSBlue while the GPSBlue device's screen
+            is dark, just press its power button to light up the screen and try again.  It
+            may be that the phone has gone into deep sleep and so needs waking up.  Once
+            connected, the phone screen will be allowed to shut off to save battery, but
+            the GPS-to-bluetooth connection will still function.</P>
+
+        <P>If the EFB app is unable to connect to GPSBlue with the GPSBlue device's screen
+            lit up, verify the background task is running by looking for the GPSBlue icon
+            in the notifications bar.  Swipe down to see if there is an error message listed
+            with the notification.  You can restart the background task by opening the app
+            then doing <B>Stop BT</B> then <B>Start BT</B> from the menu.</P>
+            <IMG SRC="bluetooth_error.png">
+
+        <P>Also make sure the UUID in GPSBlue matches the UUID used by the EFB app.</P>
+
+        <H3>Contact</H3>
+
+        <P>Contact us at <A HREF="mailto:info@outerworldapps.com?subject=GPSBlue+Contact">info@outerworldapps.com</A>
+            with any comments, questions or other issues.</P>
+
+        <H3>License</H3>
+        <P>
+            Copyright (C) Outer World Apps, Beverly, MA USA.
+            All rights reserved.
+        </P>
+        <UL>
+            <LI>This program is free software; you can redistribute it and/or modify
+            it under the terms of the <A HREF="http://www.gnu.org/licenses/gpl-2.0.html">
+            GNU General Public License as published by
+            the Free Software Foundation; version 2 of the License</A>.</LI>
+
+            <LI>This program is distributed in the hope that it will be useful,
+            but WITHOUT ANY WARRANTY; without even the implied warranty of
+            MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+            GNU General Public License for more details.</LI>
+
+            <LI>THIS SOFTWARE IS PROVIDED ``AS IS'' AND ANY EXPRESSED OR IMPLIED WARRANTIES,
+            INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+            FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL OUTER WORLD
+            APPS OR ANY CONTRIBUTORS TO THIS SOFTWARE BE LIABLE FOR ANY DIRECT, INDIRECT,
+            INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+            LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA,
+            OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+            LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+            NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+            EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.</LI>
+
+            <LI><B><FONT COLOR=RED>Always be skeptical regarding any information provided
+                by GPSBlue.  Accept it only if and when it is confirmed by your aircraft's
+                approved navigation systems and any other information you have available.
+                EXPECT it to FAIL when someone's HeALTh or PROpeRTy is at RISk.</FONT></B></LI>
+
+            <LI>You should have received a copy of the GNU General Public License
+            along with this program; if not, write to the Free Software
+            Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+            </LI>
+        </UL>
+        <UL><LI><A HREF="http://www.github.com/mrieker/GPSBlue">Source code</A></UL>
+    </BODY>
+</HTML>

@@ -1,0 +1,15 @@
+
+satellite-xxl.png:
+    https://www.iconsdb.com/blue-icons/satellite-icon.html
+
+        This icon is provided by bulb9 as CC0 1.0 Universal (CC0 1.0) Public Domain Dedication.
+        You can copy, modify, use, distribute this icon, even for commercial purposes, all
+        without asking permission with no attribution required, but always appreciated. 
+
+bluetooth-2-xxl.png:
+    https://www.iconsdb.com/blue-icons/bluetooth-2-icon.html
+
+        This icon is provided by bulb9 as CC0 1.0 Universal (CC0 1.0) Public Domain Dedication.
+        You can copy, modify, use, distribute this icon, even for commercial purposes, all
+        without asking permission with no attribution required, but always appreciated. 
+
