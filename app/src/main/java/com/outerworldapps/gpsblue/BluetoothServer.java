@@ -35,23 +35,29 @@ import android.content.Context;
 import android.util.Log;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.HashSet;
 import java.util.UUID;
 
 public class BluetoothServer {
+    private final static ReceiveThread[] nullrtarray = new ReceiveThread[0];
+
     private AcceptThread acceptThread;
-    private final HashSet<ReceiveThread> receivers;
+    private HashSet<ReceiveThread> rtlist;
     private JSessionService jSessionService;
+    private ReceiveThread[] rtarray;
     private UUID sppUUID;
 
     public BluetoothServer (JSessionService jss)
     {
         jSessionService = jss;
-        receivers = new HashSet<> ();
+        rtarray = nullrtarray;
     }
 
     /**
      * Start listening on the given bluetooth socket UUID.
+     * Called in app UI thread.
      */
     public void startup (UUID uuid)
     {
@@ -66,34 +72,35 @@ public class BluetoothServer {
     /**
      * Stop listening for new inbound connections.
      * Terminate any existing connections.
+     * Called in app UI thread.
      */
     public void shutdown ()
     {
         if (acceptThread != null) {
             acceptThread.finish ();
-            try { acceptThread.join (); } catch (InterruptedException ignored) { }
             acceptThread = null;
         }
         while (true) {
             ReceiveThread rt;
-            synchronized (receivers) {
-                if (receivers.isEmpty ()) break;
-                rt = receivers.iterator ().next ();
+            synchronized (jSessionService.connectionLock) {
+                if (rtarray.length == 0) break;
+                rt = rtarray[0];
             }
             rt.finish ();
-            try { rt.join (); } catch (InterruptedException ignored) { }
         }
     }
 
     /**
      * Send message to all connections.
+     * Called in InternalGps.GPSRcvrThread.
      */
     public void write (byte[] buf, int ofs, int len)
     {
-        synchronized (receivers) {
-            for (ReceiveThread rt : receivers) {
+        ReceiveThread[] rts = rtarray;
+        for (ReceiveThread rt : rts) {
+            if (! rt.senderr) {
                 try {
-                    rt.bs.getOutputStream ().write (buf, ofs, len);
+                    rt.os.write (buf, ofs, len);
                 } catch (IOException ioe) {
                     Log.w (GPSBlue.TAG, "error sending to bluetooth", ioe);
                     rt.senderr = true;
@@ -110,13 +117,12 @@ public class BluetoothServer {
         private BluetoothServerSocket serverSocket;
         private boolean finished;
 
-        /**
-         * Tell thread to exit.
-         */
+        // stop listening and get thread to exit
         public void finish ()
         {
             finished = true;
             try { serverSocket.close (); } catch (Exception ignored) { }
+            try { join (); } catch (InterruptedException ignored) { }
         }
 
         @Override
@@ -127,8 +133,10 @@ public class BluetoothServer {
                 BluetoothAdapter ba = bm.getAdapter ();
                 if (ba == null) throw new Exception ("no bluetooth on this device");
                 serverSocket = ba.listenUsingInsecureRfcommWithServiceRecord ("GPSBlue", sppUUID);
-                synchronized (receivers) {
-                    updateStatusText ();
+                synchronized (jSessionService.connectionLock) {
+                    rtlist = new HashSet<> ();
+                    rtarray = nullrtarray;
+                    jSessionService.updateConnectionCount (sppUUID, 0);
                 }
                 //noinspection InfiniteLoopStatement
                 while (true) {
@@ -141,7 +149,8 @@ public class BluetoothServer {
                 try { serverSocket.close (); } catch (Exception ignored) { }
                 serverSocket = null;
                 if (! finished) {
-                    jSessionService.fatalError ("Bluetooth Error", "try starting bluetooth\nor try different UUID\n" + e.getMessage ());
+                    jSessionService.fatalError ("Bluetooth Error",
+                            "try starting bluetooth\nor try different UUID\n\n" + e.getMessage ());
                 }
             }
         }
@@ -154,32 +163,35 @@ public class BluetoothServer {
     private class ReceiveThread extends Thread {
         public BluetoothSocket bs;
         public boolean senderr;
+        public OutputStream os;
 
         // drop connection and get thread to exit
         public void finish ()
         {
             try { bs.close (); } catch (IOException ignored) { }
+            try { join (); } catch (InterruptedException ignored) { }
         }
 
         @Override
         public void run ()
         {
-            // if this is the first connection, turn the GPS receiver on
-            // in any case, update the total number of inbound connections
-            synchronized (receivers) {
-                if (receivers.isEmpty ()) {
-                    jSessionService.internalGps.startSensor ();
-                }
-                receivers.add (this);
-                jSessionService.updateNotificationConnectionCount (receivers.size ());
-                updateStatusText ();
-            }
-
-            // read from the connection simply to detect when it disconnects
-            byte[] buf = new byte[4096];
             try {
+                os = bs.getOutputStream ();
+
+                // update list of who to send NMEA messages to
+                // update the total number of inbound connections
+                // this also makes sure the GPS is turned on and locks the CPU on
+                synchronized (jSessionService.connectionLock) {
+                    rtlist.add (this);
+                    rtarray = rtlist.toArray (nullrtarray);
+                    jSessionService.updateConnectionCount (sppUUID, rtarray.length);
+                }
+
+                // read from the connection simply to detect when it disconnects
+                byte[] buf = new byte[4096];
+                InputStream is = bs.getInputStream ();
                 while (! senderr) {
-                    int rc = bs.getInputStream ().read (buf);
+                    int rc = is.read (buf);
                     if (rc <= 0) break;
                 }
             } catch (IOException ioe) {
@@ -187,24 +199,14 @@ public class BluetoothServer {
             } finally {
 
                 // close the socket and tell service one less connection being handled
-                // if no connections, turn the GPS receiver off
-                synchronized (receivers) {
-                    try { bs.close (); } catch (IOException ignored) { }
-                    receivers.remove (this);
-                    jSessionService.updateNotificationConnectionCount (receivers.size ());
-                    updateStatusText ();
-                    if (receivers.isEmpty ()) {
-                        jSessionService.internalGps.stopSensor ();
-                    }
+                // if no connections, turn the GPS receiver off and unlock CPU
+                try { bs.close (); } catch (IOException ignored) { }
+                synchronized (jSessionService.connectionLock) {
+                    rtlist.remove (this);
+                    rtarray = rtlist.toArray (nullrtarray);
+                    jSessionService.updateConnectionCount (sppUUID, rtarray.length);
                 }
             }
         }
-    }
-
-    private void updateStatusText ()
-    {
-        jSessionService.setBtStatusText (
-                "uuid: " + sppUUID.toString ().toUpperCase () +
-                "\nconnections: " + receivers.size ());
     }
 }

@@ -53,6 +53,7 @@ public class InternalGps implements GpsStatus.Listener, LocationListener {
         jSessionService = jss;
     }
 
+    // called with jSessionService.connectionLock locked
     public void startSensor ()
     {
         if (rcvrThread == null) {
@@ -62,7 +63,8 @@ public class InternalGps implements GpsStatus.Listener, LocationListener {
                 return;
             }
             if (! locationManager.isProviderEnabled (LocationManager.GPS_PROVIDER)) {
-                jSessionService.fatalError ("GPS Access Error", "GPS location receiver disabled\nenable in Android settings and restart");
+                jSessionService.fatalError ("GPS Access Error",
+                        "GPS location receiver disabled\nenable in Android settings and restart");
                 return;
             }
             rcvrThread = new GPSRcvrThread ();
@@ -70,6 +72,7 @@ public class InternalGps implements GpsStatus.Listener, LocationListener {
         }
     }
 
+    // called with jSessionService.connectionLock locked
     public void stopSensor ()
     {
         if (rcvrThread != null) {

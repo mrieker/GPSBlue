@@ -3,11 +3,11 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import javax.imageio.ImageIO;
 
-public class BlandChartFade {
+public class CircleFade {
     public static void main (String[] args)
             throws Exception
     {
-        BufferedImage img = ImageIO.read (new File ("bland_chart_512.png"));
+        BufferedImage img = ImageIO.read (new File (args[0]));
         int w = img.getWidth ();
         int h = img.getHeight ();
         int[] pixels = img.getRGB (0, 0, w, h, null, 0, w);
@@ -22,6 +22,6 @@ public class BlandChartFade {
             }
         }
         img.setRGB (0, 0, w, h, pixels, 0, w);
-        ImageIO.write (img, "png", new File ("bland_faded_512.png"));
+        ImageIO.write (img, "png", new File (args[1]));
     }
 }

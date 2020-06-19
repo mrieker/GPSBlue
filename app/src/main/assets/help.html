@@ -12,7 +12,7 @@
             better view of the sky, which receives the GPS signal, then relays the co-ordinates
             to the tablet via bluetooth.</P>
 
-        <P>The bluetooth messages are in industry standard NMEA format of types GGA, GSV, RMC
+        <P>The bluetooth messages are in industry standard NMEA format of types GGA, GSA, GSV, RMC
             (the minimal set needed to convey latitude, longitude, altitude, course, speed,
             date, time, satellites).  They are known to work with EFB apps
             <A HREF="https://play.google.com/store/apps/details?id=com.outerworldapps.wairtonow">WairToNow</A>
@@ -35,8 +35,7 @@
         <UL>
             <LI><B>Close UI</B> - closes the user interface but leaves the background task
                 running if is running
-            <LI><B>Start BT</B> - starts the background task if not running or restarts it
-                if it is already running
+            <LI><B>Start BT</B> - starts the background task if not running
             <LI><B>Stop BT</B> - stops the background task if it is running (no effect if
                 not)
             <LI><B>Help</B> - display this page

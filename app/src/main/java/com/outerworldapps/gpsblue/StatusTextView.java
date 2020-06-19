@@ -76,21 +76,18 @@ public class StatusTextView extends TextView {
                 sb.append (sdf.format (loc.getTime ()));
                 sb.append (" UTC'\n");
 
-                double latitude = loc.getLatitude ();
-                double longitude = loc.getLongitude ();
-                LatLonString (sb, latitude, 'N', 'S');
+                LatLonString (sb, loc.getLatitude (), 'N', 'S');
                 sb.append ("    ");
-                LatLonString (sb, longitude, 'E', 'W');
+                LatLonString (sb, loc.getLongitude (), 'E', 'W');
                 sb.append ('\n');
 
-                double altitude = loc.getAltitude ();
-                double heading = loc.getBearing ();
-                double speed = loc.getSpeed ();
-                sb.append (Math.round (altitude * FtPerM));
+                sb.append (Math.round (loc.getAltitude () * FtPerM));
                 sb.append (" ft MSL    ");
-                sb.append (String.format (Locale.US, "%05.1f", heading));
+
+                sb.append (String.format (Locale.US, "%05.1f", loc.getBearing ()));
                 sb.append ("\u00B0 T    ");
-                sb.append (String.format (Locale.US, "%.1f", speed * KtPerMPS));
+
+                sb.append (String.format (Locale.US, "%3.1f", loc.getSpeed () * KtPerMPS));
                 sb.append (" kts\n");
             }
 
@@ -114,10 +111,12 @@ public class StatusTextView extends TextView {
     private static void LatLonString (StringBuilder sb, double ll, char pos, char neg)
     {
         if (ll < 0.0) {
-            sb.append (String.format (Locale.US, "%05.1f", -ll));
+            sb.append (String.format (Locale.US, "%09.5f", -ll));
+            sb.append ('\u00B0');
             sb.append (neg);
         } else {
-            sb.append (String.format (Locale.US, "%05.1f", ll));
+            sb.append (String.format (Locale.US, "%09.5f", ll));
+            sb.append ('\u00B0');
             sb.append (pos);
         }
     }

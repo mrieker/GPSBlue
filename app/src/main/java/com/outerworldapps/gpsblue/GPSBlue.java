@@ -22,6 +22,7 @@ package com.outerworldapps.gpsblue;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.ActivityManager;
 import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.Context;
@@ -54,8 +55,6 @@ public class GPSBlue extends Activity implements ServiceConnection {
     private boolean hasAgreed;
     public  boolean running;
     public  float textSize;
-    public  int displayWidth;
-    public  int displayHeight;
     public  HelpView helpView;
     private Intent jsessionserviceintent;
     public  JSessionService jSessionService;
@@ -72,23 +71,13 @@ public class GPSBlue extends Activity implements ServiceConnection {
     {
         super.onCreate (savedInstanceState);
 
-        /*
-         * Get pixel size.
-         */
+        // get pixel size
         DisplayMetrics metrics = new DisplayMetrics ();
         getWindowManager ().getDefaultDisplay ().getMetrics (metrics);
         float dotsPerInch = (float) Math.sqrt (metrics.xdpi * metrics.ydpi);
 
-        /*
-         * Get text size to use throughout.
-         */
+        // get text size to use throughout
         textSize = dotsPerInch / 7;
-
-        /*
-         * Also get screen size in pixels.
-         */
-        displayWidth = metrics.widthPixels;
-        displayHeight = metrics.heightPixels;
 
         // set up help page
         helpView = new HelpView (this);
@@ -143,9 +132,7 @@ public class GPSBlue extends Activity implements ServiceConnection {
             return;
         }
 
-        // pretend clicked the Start button
-        // also binds to the service and so we know it is started
-        StartBt ();
+        havePermission ();
     }
 
     // Permission granting
@@ -159,9 +146,26 @@ public class GPSBlue extends Activity implements ServiceConnection {
                     != PackageManager.PERMISSION_GRANTED) {
                 finish ();
             } else {
-                StartBt ();
+                havePermission ();
             }
         }
+    }
+
+    // all licenses agreed to and all permissions granted
+    // if service is started, bind to it, otherwise we are ready for menu clicks
+    private void havePermission ()
+    {
+        jsessionserviceintent = new Intent (this, JSessionService.class);
+
+        // https://stackoverflow.com/questions/600207/how-to-check-if-a-service-is-running-on-android
+        ActivityManager manager = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(Integer.MAX_VALUE)) {
+            if (JSessionService.class.getName().equals(service.service.getClassName())) {
+                StartBt ();
+                return;
+            }
+        }
+        StopBt ();
     }
 
     /**
@@ -333,7 +337,6 @@ public class GPSBlue extends Activity implements ServiceConnection {
              * Service keeps running until stopSelf() or stopService() is called.
              * https://developer.android.com/guide/components/services
              */
-            jsessionserviceintent = new Intent (this, JSessionService.class);
             startService (jsessionserviceintent);
 
             // get access to the JSessionService instance
@@ -349,13 +352,13 @@ public class GPSBlue extends Activity implements ServiceConnection {
      */
     private void StopBt ()
     {
-        if (running) {
+        if (jSessionService != null) {
             jSessionService.stopListening ();
             unbindService ();
-            stopService (jsessionserviceintent);
-            uuidView.setVisibility (View.VISIBLE);
-            running = false;
-            statusTextView.updateText ();
         }
+        stopService (jsessionserviceintent);
+        uuidView.setVisibility (View.VISIBLE);
+        running = false;
+        statusTextView.updateText ();
     }
 }

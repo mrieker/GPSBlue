@@ -57,7 +57,7 @@ public class JSessionService extends Service {
     private final static String CHANNEL_ID = "connectioncount";
 
     public  BluetoothServer bluetoothServer;
-    private boolean partialWakeAcquired;
+    private boolean gpsStarted;
     private boolean listening;
     private GPSBlue gpsBlue;
     public  int numlocationsrcvd;
@@ -68,6 +68,7 @@ public class JSessionService extends Service {
     private final MyBinder myBinder = new MyBinder ();
     private MyGpsSatellite[] latestSatellites;
     private NotificationManager notificationManager;
+    public  final Object connectionLock = new Object ();
     private PowerManager.WakeLock partialWakeLock;
     private SimpleDateFormat sdfhms;
     private SimpleDateFormat sdfdmy;
@@ -112,14 +113,14 @@ public class JSessionService extends Service {
         notificationManager.cancelAll ();
         bluetoothServer.shutdown ();
         internalGps.stopSensor ();
-        notificationManager = null;
+        if (gpsStarted) {
+            partialWakeLock.release ();
+            gpsStarted = false;
+        }
         bluetoothServer = null;
         internalGps = null;
-        if (partialWakeAcquired) {
-            partialWakeLock.release ();
-            partialWakeAcquired = false;
-            partialWakeLock = null;
-        }
+        notificationManager = null;
+        partialWakeLock = null;
     }
 
     // GPSBlue app was just started and called startService()
@@ -185,6 +186,10 @@ public class JSessionService extends Service {
         }
     }
 
+    /****************************************************\
+     *  Called from various threads within the service  *
+    \****************************************************/
+
     /**
      * Start up the app, display error message then stop the service.
      */
@@ -203,11 +208,31 @@ public class JSessionService extends Service {
     }
 
     /**
-     * Display number of bluetooth connections if app is attached.
+     * Current number of connections has changed.
+     * If zero, let CPU and screen go to sleep.
+     * If non-zero, keep CPU on, let screen shut off.
+     * Update in-app count and notification count.
+     * Called with connectionLock locked.
      */
-    public void setBtStatusText (String str)
+    @SuppressLint("WakelockTimeout")
+    public void updateConnectionCount (UUID sppUUID, int count)
     {
-        latestStatusText = str;
+        if (count > 0) {
+            if (! gpsStarted) {
+                partialWakeLock.acquire ();
+                internalGps.startSensor ();
+                gpsStarted = true;
+            }
+        } else {
+            if (gpsStarted) {
+                internalGps.stopSensor ();
+                partialWakeLock.release ();
+                gpsStarted = false;
+            }
+        }
+
+        latestStatusText = "uuid: " + sppUUID.toString ().toUpperCase () +
+                "\nconnections: " + count;
         final GPSBlue gpsb = gpsBlue;
         if (gpsb != null) {
             gpsb.runOnUiThread (new Runnable () {
@@ -218,12 +243,19 @@ public class JSessionService extends Service {
                 }
             });
         }
+
+        Notification notification = createNotification (count);
+        notificationManager.notify (NOTIFY_ID, notification);
     }
 
     /*******************************************************************\
      *  Values received from GPS get transmitted to bluetooth clients  *
     \*******************************************************************/
 
+    /**
+     * GPS location received.
+     * Called in InternalGps.GPSRcvrThread.
+     */
     public void LocationReceived (Location loc)
     {
         Date date = new Date (loc.getTime ());
@@ -277,6 +309,7 @@ public class JSessionService extends Service {
      * Satellite status received from GPS.
      * Transmit update over bluetooth.
      * Update screen if app attached.
+     * Called in InternalGps.GPSRcvrThread.
      */
     public void SatellitesReceived (final MyGpsSatellite[] satellites)
     {
@@ -290,6 +323,8 @@ public class JSessionService extends Service {
             if (totalsentences == 0) ++totalsentences;
             int satelliteindex = 0;
             StringBuilder sb = new StringBuilder ();
+            MyGpsSatellite[] usedprns = new MyGpsSatellite[12];
+            int nusedprns = 0;
             for (MyGpsSatellite sat : satellites) {
                 if (satelliteindex % 4 == 0) {
                     sb.append ("$GPGSV,");
@@ -310,13 +345,32 @@ public class JSessionService extends Service {
                 if (++ satelliteindex % 4 == 0) {
                     NMEAChecksum (sb);
                 }
-            }
-            if (sb.length () > 0) {
-                if (satelliteindex % 4 != 0) {
-                    NMEAChecksum (sb);
+                if (sat.used) {
+                    int i;
+                    for (i = 0; i < nusedprns; i ++) {
+                        if (sat.snr > usedprns[i].snr) break;
+                    }
+                    if (nusedprns < usedprns.length) nusedprns ++;
+                    if (i < nusedprns) {
+                        System.arraycopy (usedprns, i, usedprns, i + 1, nusedprns - i - 1);
+                        usedprns[i] = sat;
+                    }
                 }
-                TransmitString (sb.toString ());
             }
+            if (satelliteindex % 4 != 0) {
+                NMEAChecksum (sb);
+            }
+            sb.append ("$GPGSA,A,3");
+            for (int i = 0; i < usedprns.length; i ++) {
+                sb.append (',');
+                if (i < nusedprns) {
+                    sb.append (usedprns[i].prn);
+                }
+            }
+            sb.append (",1.2,1.2,1.2");
+            NMEAChecksum (sb);
+
+            TransmitString (sb.toString ());
 
             numstatusesrcvd ++;
         }
@@ -352,7 +406,7 @@ public class JSessionService extends Service {
         sb.append (pos);
     }
 
-    // append NMEA checksum and LF to a string
+    // append NMEA checksum and CRLF to a string
     private static void NMEAChecksum (StringBuilder sb)
     {
         int len = sb.length ();
@@ -362,45 +416,21 @@ public class JSessionService extends Service {
             if (c == '$') break;
             xor ^= c;
         }
-        sb.append (String.format (Locale.US, "*%02X\n", xor));
+        sb.append (String.format (Locale.US, "*%02X\r\n", xor));
     }
 
     // transmit to all connected bluetooth EFB apps
+    // called in InternalGps.GPSRcvrThread.
     private void TransmitString (String st)
     {
         byte[] bytes = st.getBytes ();
-        if (bluetoothServer != null) bluetoothServer.write (bytes, 0, bytes.length);
+        BluetoothServer bs = bluetoothServer;
+        if (bs != null) bs.write (bytes, 0, bytes.length);
     }
 
     /**************\
      *  Internal  *
     \**************/
-
-    /**
-     * Update the status bar notification to indicate the current number of connections.
-     * If zero, let CPU and screen go to sleep.
-     * If non-zero, keep CPU on, let screen shut off.
-     */
-    @SuppressLint("WakelockTimeout")
-    public void updateNotificationConnectionCount (int count)
-    {
-        synchronized (this) {
-            if (count > 0) {
-                if (! partialWakeAcquired) {
-                    partialWakeLock.acquire ();
-                    partialWakeAcquired = true;
-                }
-            } else {
-                if (partialWakeAcquired) {
-                    partialWakeLock.release ();
-                    partialWakeAcquired = false;
-                }
-            }
-        }
-
-        Notification notification = createNotification (count);
-        notificationManager.notify (NOTIFY_ID, notification);
-    }
 
     /**
      * Create a new status bar notification indicating the given connection count.
@@ -433,7 +463,13 @@ public class JSessionService extends Service {
         } else {
             nb = new Notification.Builder (this);
         }
-        nb.setSmallIcon (R.drawable.satblue_16);
+        if ((Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)) {
+            // use a full-color icon when android can handle full-color icons for notifications
+            nb.setSmallIcon (R.drawable.satblue_64);
+        } else {
+            // background->full transparent; foreground->white,full opaque
+            nb.setSmallIcon (R.drawable.satwhite_64);
+        }
         nb.setTicker (APP_NAME + " connections");
         nb.setWhen (System.currentTimeMillis ());
 
